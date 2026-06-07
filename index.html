@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Random Shapes</title>
+<style>
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 40px;
+    font-family: system-ui, sans-serif;
+    background: #ffffff;
+  }
+  #stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 50px;
+    flex-wrap: wrap;
+    min-height: 320px;
+  }
+  button {
+    padding: 12px 28px;
+    font-size: 16px;
+    border: none;
+    border-radius: 8px;
+    background: #4f8cff;
+    color: white;
+    cursor: pointer;
+  }
+  button:hover { background: #3b76e6; }
+  #controls {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+  }
+  #gearBtn { padding: 12px 16px; }
+  #popup {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.15);
+    padding: 14px 18px;
+    display: none;
+    white-space: nowrap;
+    text-align: left;
+  }
+  #popup.open { display: block; }
+  #popup label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  #stage > * { cursor: pointer; transition: filter .1s, transform .1s; }
+  .selected {
+    filter: drop-shadow(0 0 0 #000) drop-shadow(0 0 12px #000);
+    transform: scale(1.08);
+  }
+</style>
+</head>
+<body>
+  <div id="stage"></div>
+  <div id="controls">
+    <button onclick="generate(2)">2</button>
+    <button onclick="generate(3)">3</button>
+    <button id="gearBtn" onclick="togglePopup(event)">&#9881;</button>
+    <div id="popup">
+      <label><input type="checkbox" id="dupShapes" onchange="setOpt()"> Duplicate shapes</label>
+      <label><input type="checkbox" id="dupColors" onchange="setOpt()"> Duplicate colors</label>
+      <label><input type="checkbox" id="borders" onchange="setOpt()" checked> Borders</label>
+    </div>
+  </div>
+
+<script>
+  const TYPES = ['circle', 'square', 'triangle'];
+
+  function rand(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  // clear, unambiguous named colors
+  const COLORS = [
+    'red', 'orange', 'yellow', 'green',
+    'blue', 'purple', 'pink', 'black', 'brown', 'gray'
+  ];
+
+  const STROKE = 4;
+  const SVGNS = 'http://www.w3.org/2000/svg';
+
+  function makeShape(size, color, type) {
+    const svg = document.createElementNS(SVGNS, 'svg');
+    svg.setAttribute('width', size);
+    svg.setAttribute('height', size);
+    svg.onclick = () => {
+      const wasSelected = svg.classList.contains('selected');
+      document.querySelectorAll('#stage .selected')
+        .forEach(s => s.classList.remove('selected'));
+      if (!wasSelected) svg.classList.add('selected');
+    };
+
+    const o = STROKE / 2;          // inset so the stroke isn't clipped
+    const e = size - STROKE;       // inner extent
+    let shape;
+    if (type === 'circle') {
+      shape = document.createElementNS(SVGNS, 'circle');
+      shape.setAttribute('cx', size / 2);
+      shape.setAttribute('cy', size / 2);
+      shape.setAttribute('r', size / 2 - o);
+    } else if (type === 'square') {
+      shape = document.createElementNS(SVGNS, 'rect');
+      shape.setAttribute('x', o);
+      shape.setAttribute('y', o);
+      shape.setAttribute('width', e);
+      shape.setAttribute('height', e);
+    } else {
+      shape = document.createElementNS(SVGNS, 'polygon');
+      shape.setAttribute('points',
+        `${size / 2},${o} ${o},${size - o} ${size - o},${size - o}`);
+      shape.setAttribute('stroke-linejoin', 'round');
+    }
+    shape.setAttribute('fill', color);
+    if (borders) {
+      shape.setAttribute('stroke', '#555');
+      shape.setAttribute('stroke-width', STROKE);
+    }
+    svg.appendChild(shape);
+    return svg;
+  }
+
+  // clearly distinct size buckets, small -> large
+  const BUCKETS = [[90, 130], [190, 240], [300, 360]];
+
+  let dupShapes = false;
+  let dupColors = false;
+  let borders = true;
+  let lastCount = 3;
+
+  // pick `count` items: independently random (allow dups) or distinct (shuffled)
+  function pick(arr, count, allowDup) {
+    if (allowDup) {
+      return Array.from({ length: count }, () => arr[rand(0, arr.length - 1)]);
+    }
+    return arr.slice().sort(() => Math.random() - 0.5).slice(0, count);
+  }
+
+  function generate(count) {
+    lastCount = count;
+    const stage = document.getElementById('stage');
+    stage.innerHTML = '';
+    // sizes are always clearly distinct, shuffled across positions
+    const sizes = BUCKETS.slice(0, count)
+      .map(([lo, hi]) => rand(lo, hi))
+      .sort(() => Math.random() - 0.5);
+    const colors = pick(COLORS, count, dupColors);
+    const types = pick(TYPES, count, dupShapes);
+    sizes.forEach((size, i) =>
+      stage.appendChild(makeShape(size, colors[i], types[i])));
+  }
+
+  function setOpt() {
+    dupShapes = document.getElementById('dupShapes').checked;
+    dupColors = document.getElementById('dupColors').checked;
+    borders = document.getElementById('borders').checked;
+    generate(lastCount);
+  }
+
+  function togglePopup(e) {
+    e.stopPropagation();
+    document.getElementById('popup').classList.toggle('open');
+  }
+
+  // click outside closes the popup
+  document.addEventListener('click', () =>
+    document.getElementById('popup').classList.remove('open'));
+  document.getElementById('popup').addEventListener('click', e => e.stopPropagation());
+
+  generate(3);
+</script>
+</body>
+</html>
