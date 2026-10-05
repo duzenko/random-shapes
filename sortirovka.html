@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Сортировка мусора</title>
+<style>
+  :root { --bg:#f4f1ea; --panel:#fff; --line:#d9d2c5; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: system-ui, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: #2b2b2b;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 18px;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  h1 { margin: 6px 0 2px; font-size: 26px; }
+  .sub { color: #777; font-size: 14px; margin-bottom: 14px; text-align: center; max-width: 560px; }
+
+  .modes { display: flex; gap: 6px; margin-bottom: 10px; }
+  .modes button {
+    padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px;
+    background: #fff; cursor: pointer; font-size: 14px;
+  }
+  .modes button.active { background: #2b2b2b; color: #fff; border-color: #2b2b2b; }
+
+  .emo {
+    font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+    line-height: 1;
+    display: block;
+  }
+
+  .slot { position: relative; height: 220px; display: flex; align-items: center; justify-content: center; }
+  .item {
+    position: relative;
+    z-index: 5;
+    background: var(--panel);
+    border: 2px dashed #b9b0a1;
+    border-radius: 18px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.06);
+    width: 180px;
+    padding: 14px 10px 10px;
+    text-align: center;
+    cursor: grab;
+    touch-action: none;
+    transition: transform .3s ease, opacity .3s ease;
+  }
+  .item.dragging { cursor: grabbing; transition: none; z-index: 10; opacity: .65; box-shadow: 0 14px 30px rgba(0,0,0,.18); }
+  .item svg { display: block; margin: 0 auto; }
+  .item .name { font-size: 20px; font-weight: 600; margin-top: 6px; }
+  .item .ask { font-size: 15px; color: #777; margin-top: 2px; }
+  .done { font-size: 22px; font-weight: 600; text-align: center; }
+  .done small { display: block; font-size: 15px; color: #666; font-weight: 400; margin-top: 6px; }
+
+  .bins { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
+  .bin { width: 150px; cursor: pointer; text-align: center; transition: transform .12s, filter .15s, opacity .15s; }
+  .bins.has-hover .bin:not(.hover) { filter: grayscale(1); opacity: .4; }
+  .bin .can { position: relative; width: 130px; height: 140px; margin: 0 auto; }
+  .bin .can > svg { position: absolute; top: 0; left: 0; }
+  .binback  { z-index: 1; }
+  .pile     { position: absolute; left: 0; top: 0; width: 130px; height: 40px; z-index: 2; }
+  .binfront { z-index: 3; }
+  .junk { position: absolute; }
+  .bin .plate {
+    z-index: 4;
+    position: absolute; left: 50%; top: 52%; transform: translate(-50%, -50%);
+    background: #fff; border: 1px solid rgba(0,0,0,.35); padding: 3px 10px;
+    font-weight: 700; font-size: 17px; white-space: nowrap;
+  }
+  .bin.hover { transform: scale(1.07); }
+  .bin.wrong { animation: shake .45s; }
+  .bin.right { animation: pop .35s; }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-8px); } 40% { transform: translateX(8px); }
+    60% { transform: translateX(-6px); } 80% { transform: translateX(6px); }
+  }
+  @keyframes pop { 50% { transform: scale(1.1); } }
+  .thumb {
+    position: absolute; left: 50%; top: 50%;
+    font-size: 110px; line-height: 1; pointer-events: none;
+    font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+    animation: thumb .6s ease forwards;
+  }
+  @keyframes thumb {
+    0%   { transform: translate(-50%,-50%) scale(0) rotate(-30deg); opacity: 0; }
+    60%  { transform: translate(-50%,-50%) scale(1.25) rotate(10deg); opacity: 1; }
+    100% { transform: translate(-50%,-50%) scale(1) rotate(0); opacity: 1; }
+  }
+
+  .feedback { font-size: 17px; min-height: 26px; margin: 16px 0 4px; font-weight: 600; text-align: center; }
+  .explain { color: #444; font-size: 18px; min-height: 24px; max-width: 460px; text-align: center; }
+
+  .bar { display: flex; gap: 20px; align-items: center; margin-top: 14px; }
+  .bar button {
+    padding: 10px 22px; border: none; border-radius: 8px;
+    background: #4f8cff; color: #fff; font-size: 15px; cursor: pointer;
+  }
+  .bar button:hover { background: #3b76e6; }
+  .bar button:disabled { opacity: .4; cursor: default; background: #4f8cff; }
+  .score { font-size: 15px; color: #444; }
+  .reset { background: none !important; color: #999 !important; border: none; cursor: pointer; font-size: 13px; text-decoration: underline; padding: 0 !important; }
+  .back { position: absolute; top: 14px; left: 18px; color: #777; text-decoration: none; font-size: 15px; }
+  .back:hover { color: #2b2b2b; }
+</style>
+</head>
+<body>
+  <a class="back" href="index.html">← Меню</a>
+  <h1>♻️ Сортировка мусора</h1>
+  <div class="sub">Перетащи предмет в нужный контейнер — или просто нажми на контейнер.
+    Спрашивай: какой? какая? какое? какие?</div>
+
+  <div class="modes">
+    <button data-n="2">2 контейнера</button>
+    <button data-n="4" class="active">4 контейнера</button>
+  </div>
+
+  <div class="slot" id="slot"></div>
+  <div class="bins" id="bins"></div>
+
+  <div class="feedback" id="feedback"></div>
+  <div class="explain" id="explain"></div>
+
+  <div class="bar">
+    <span class="score" id="score"></span>
+    <button id="next">Дальше →</button>
+    <button class="reset" id="reset">начать заново</button>
+  </div>
+
+<script>
+  const BINS = [
+    { id: 'glass',   name: 'стекло',  gen: 'стекла',   color: '#ee4b1c',
+      adj: { m: 'стеклянный',  f: 'стеклянная',  n: 'стеклянное',  pl: 'стеклянные' } },
+    { id: 'paper',   name: 'бумага',  gen: 'бумаги',   color: '#7cc520',
+      adj: { m: 'бумажный',    f: 'бумажная',    n: 'бумажное',    pl: 'бумажные' } },
+    { id: 'plastic', name: 'пластик', gen: 'пластика', color: '#7fa3d8',
+      adj: { m: 'пластиковый', f: 'пластиковая', n: 'пластиковое', pl: 'пластиковые' } },
+    { id: 'wood',    name: 'дерево',  gen: 'дерева',   color: '#f2cc0c',
+      adj: { m: 'деревянный',  f: 'деревянная',  n: 'деревянное',  pl: 'деревянные' } },
+  ];
+  const ASK = { m: 'Какой', f: 'Какая', n: 'Какое', pl: 'Какие' };
+
+  const VS = '️';   // force emoji presentation
+  const ITEMS = [
+    // стекло
+    { name: 'бутылка',   g: 'f',  bin: 'glass',   emoji: '🍾' },
+    { name: 'стакан',    g: 'm',  bin: 'glass',   emoji: '🥛' },
+    { name: 'лампочка',  g: 'f',  bin: 'glass',   emoji: '💡' },
+    { name: 'бокал',     g: 'm',  bin: 'glass',   emoji: '🍷' },
+    { name: 'шар',       g: 'm',  bin: 'glass',   emoji: '🔮' },
+    { name: 'бусы',      g: 'pl', bin: 'glass',   emoji: '📿' },
+    { name: 'окно',      g: 'n',  bin: 'glass',   svg: 'window' },
+    // бумага
+    { name: 'газета',    g: 'f',  bin: 'paper',   emoji: '📰' },
+    { name: 'лист',      g: 'm',  bin: 'paper',   emoji: '📄' },
+    { name: 'коробка',   g: 'f',  bin: 'paper',   emoji: '📦' },
+    { name: 'блокнот',   g: 'm',  bin: 'paper',   emoji: '🗒' + VS },
+    { name: 'книга',     g: 'f',  bin: 'paper',   emoji: '📕' },
+    { name: 'полотенце', g: 'n',  bin: 'paper',   emoji: '🧻' },
+    { name: 'письмо',    g: 'n',  bin: 'paper',   emoji: '✉' + VS },
+    // пластик
+    { name: 'бутылка',   g: 'f',  bin: 'plastic', emoji: '🧴' },
+    { name: 'стаканчик', g: 'm',  bin: 'plastic', emoji: '🥤' },
+    { name: 'пакеты',    g: 'pl', bin: 'plastic', emoji: '🛍' + VS },
+    { name: 'ручка',     g: 'f',  bin: 'plastic', emoji: '🖊' + VS },
+    { name: 'ведро',     g: 'n',  bin: 'plastic', svg: 'bucket' },
+    { name: 'крышки',    g: 'pl', bin: 'plastic', svg: 'caps' },
+    { name: 'канистра',  g: 'f',  bin: 'plastic', svg: 'jerrycan' },
+    // дерево
+    { name: 'стул',      g: 'm',  bin: 'wood',    emoji: '🪑' },
+    { name: 'пешка',     g: 'f',  bin: 'wood',    emoji: '♟' + VS },
+    { name: 'карандаш',  g: 'm',  bin: 'wood',    emoji: '✏' + VS },
+    { name: 'лодка',     g: 'f',  bin: 'wood',    emoji: '🛶' },
+    { name: 'палочки',   g: 'pl', bin: 'wood',    emoji: '🥢' },
+    { name: 'скрипка',   g: 'f',  bin: 'wood',    emoji: '🎻' },
+    { name: 'полено',    g: 'n',  bin: 'wood',    svg: 'log' },
+  ];
+
+  // ---- drawings for items without a suitable emoji ----
+  function cap(x, y, c) {
+    return `<circle cx="${x}" cy="${y}" r="15" fill="${c}"/>` +
+           `<circle cx="${x}" cy="${y}" r="10" fill="none" stroke="rgba(0,0,0,.2)" stroke-width="3"/>`;
+  }
+  const DRAW = {
+    window: `<rect x="16" y="12" width="68" height="76" rx="5" fill="#8d6e63"/>
+      <rect x="23" y="19" width="25" height="29" fill="#bfe6f7"/><rect x="52" y="19" width="25" height="29" fill="#bfe6f7"/>
+      <rect x="23" y="52" width="25" height="29" fill="#bfe6f7"/><rect x="52" y="52" width="25" height="29" fill="#bfe6f7"/>
+      <path d="M28,40 L41,24 M57,40 L70,24" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".85"/>
+      <rect x="10" y="86" width="80" height="7" rx="2" fill="#6d4c41"/>`,
+    bucket: `<path d="M27,44 C27,6 73,6 73,44" fill="none" stroke="#5f6368" stroke-width="5"/>
+      <path d="M22,40 H78 L70,88 H30 Z" fill="#f25c2a"/>
+      <ellipse cx="50" cy="40" rx="28" ry="6" fill="#ff8a5c"/>
+      <path d="M31,52 L36,80" stroke="#fff" stroke-width="3" opacity=".35" stroke-linecap="round"/>`,
+    caps: cap(32, 40, '#e53935') + cap(64, 36, '#fdd835') + cap(28, 70, '#1e88e5') +
+          cap(58, 68, '#43a047') + cap(80, 58, '#e91e63'),
+    jerrycan: `<rect x="42" y="12" width="30" height="18" rx="6" fill="none" stroke="#7aa6d6" stroke-width="6"/>
+      <rect x="22" y="26" width="56" height="64" rx="9" fill="#cfe3f8" stroke="#7aa6d6" stroke-width="3"/>
+      <rect x="26" y="12" width="12" height="16" rx="3" fill="#1e88e5"/>
+      <rect x="32" y="40" width="10" height="38" rx="4" fill="#fff" opacity=".6"/>`,
+    log: `<rect x="10" y="38" width="70" height="34" rx="8" fill="#9c6233"/>
+      <path d="M18,46 H56 M24,56 H70 M16,64 H50" stroke="#7a4a24" stroke-width="3" stroke-linecap="round"/>
+      <ellipse cx="80" cy="55" rx="11" ry="17" fill="#e8bd84"/>
+      <ellipse cx="80" cy="55" rx="6.5" ry="10.5" fill="none" stroke="#b9874c" stroke-width="2"/>
+      <ellipse cx="80" cy="55" rx="2.5" ry="4" fill="#b9874c"/>`,
+  };
+
+  function icon(it, px) {
+    if (it.emoji) return `<span class="emo" style="font-size:${px}px">${it.emoji}</span>`;
+    const s = Math.round(px * 1.15);
+    return `<svg width="${s}" height="${s}" viewBox="0 0 100 100">${DRAW[it.svg]}</svg>`;
+  }
+
+  // bin is drawn in two layers so junk can sit between them, sticking out of the top
+  function binBack(color) {
+    return `<svg class="binback" width="130" height="140" viewBox="0 0 120 130">
+      <polygon points="12,26 108,26 102,4 18,4" fill="${color}"/>
+      <polygon points="12,26 108,26 102,4 18,4" fill="rgba(0,0,0,.28)"/>
+    </svg>`;
+  }
+  function binFront(color) {
+    return `<svg class="binfront" width="130" height="140" viewBox="0 0 120 130">
+      <path d="M13,26 H107 L99,110 H21 Z" fill="${color}"/>
+      <rect x="9" y="23" width="102" height="7" rx="3" fill="${color}"/>
+      <rect x="9" y="23" width="102" height="7" rx="3" fill="rgba(0,0,0,.15)"/>
+      <rect x="30" y="38" width="22" height="60" rx="9" fill="rgba(0,0,0,.08)"/>
+      <rect x="68" y="38" width="22" height="60" rx="9" fill="rgba(0,0,0,.08)"/>
+      <circle cx="32" cy="116" r="10" fill="#3b3b3b"/><circle cx="32" cy="116" r="4" fill="#aaa"/>
+      <circle cx="88" cy="116" r="10" fill="#3b3b3b"/><circle cx="88" cy="116" r="4" fill="#aaa"/>
+    </svg>`;
+  }
+
+  const cap1 = s => s[0].toUpperCase() + s.slice(1);
+  const binOf = id => BINS.find(b => b.id === id);
+
+  function shuffle(a) {
+    a = a.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // ---- state ----
+  let binCount = 4;
+  let active = [], deck = [], gameSize = 0;
+  let current = null, solved = false, firstTry = true;
+  let placed = 0, clean = 0;
+  let dx = 0, dy = 0, drag = null;
+
+  const $ = id => document.getElementById(id);
+  function fb(text, color) { $('feedback').textContent = text; $('feedback').style.color = color || ''; }
+  function ex(text) { $('explain').textContent = text; }
+
+  function newGame() {
+    active = binCount === 4 ? BINS.slice() : shuffle(BINS).slice(0, 2);
+    active.sort((a, b) => BINS.indexOf(a) - BINS.indexOf(b));
+    const ids = active.map(b => b.id);
+    deck = shuffle(ITEMS.filter(it => ids.includes(it.bin)));
+    gameSize = deck.length;
+    placed = clean = 0;
+    renderBins();
+    next();
+  }
+
+  function renderBins() {
+    const box = $('bins');
+    box.innerHTML = '';
+    active.forEach(b => {
+      const d = document.createElement('div');
+      d.className = 'bin';
+      d.dataset.bin = b.id;
+      d.innerHTML = `<div class="can">${binBack(b.color)}<div class="pile"></div>` +
+                    `${binFront(b.color)}<div class="plate">${b.name}</div></div>`;
+      d.onclick = () => choose(b.id);
+      box.appendChild(d);
+    });
+  }
+
+  function next() {
+    fb(''); ex('');
+    if (!deck.length) {
+      current = null;
+      $('slot').innerHTML = `<div class="done">🎉 Всё разложено!<small>С первого раза: ${clean} из ${gameSize}</small></div>`;
+      $('next').textContent = 'Ещё раз';
+      $('next').disabled = false;
+      updateScore();
+      return;
+    }
+    current = deck.pop();
+    solved = false; firstTry = true; dx = dy = 0;
+    $('slot').innerHTML =
+      `<div class="item" id="item">${icon(current, 96)}` +
+      `<div class="name">${cap1(current.name)}</div>` +
+      `<div class="ask">${ASK[current.g]} ${current.name}?</div></div>`;
+    $('next').textContent = 'Дальше →';
+    $('next').disabled = true;
+    hookDrag($('item'));
+    updateScore();
+  }
+
+  function choose(binId) {
+    if (!current || solved) return;
+    const binEl = document.querySelector(`.bin[data-bin="${binId}"]`);
+    const item = $('item');
+    const b = binOf(binId);
+    const it = current;
+    if (binId === it.bin) {
+      solved = true;
+      placed++;
+      if (firstTry) clean++;
+      // fly into the bin
+      const ir = item.getBoundingClientRect();
+      const br = binEl.querySelector('.can').getBoundingClientRect();
+      dx += br.left + br.width / 2 - (ir.left + ir.width / 2);
+      dy += br.top + br.height * 0.3 - (ir.top + ir.height / 2);
+      item.classList.remove('dragging');
+      item.style.transform = `translate(${dx}px,${dy}px) scale(.15)`;
+      item.style.opacity = '0';
+      setTimeout(() => {
+        addToPile(binEl, it);
+        binEl.classList.remove('right'); void binEl.offsetWidth; binEl.classList.add('right');
+      }, 280);
+      $('slot').insertAdjacentHTML('beforeend', '<div class="thumb">👍</div>');
+      fb('✓ Верно!', '#2e9e4f');
+      ex(`Из ${b.gen} — ${b.adj[it.g]} ${it.name}.`);
+      $('next').disabled = false;
+    } else {
+      firstTry = false;
+      binEl.classList.remove('wrong'); void binEl.offsetWidth; binEl.classList.add('wrong');
+      dx = dy = 0;
+      item.classList.remove('dragging');
+      item.style.transform = '';
+      fb(`✗ ${cap1(it.name)} не из ${b.gen} — попробуй ещё`, '#d23b3b');
+    }
+    updateScore();
+  }
+
+  // sorted junk piles up inside the bin, peeking over the rim
+  function addToPile(binEl, it) {
+    const pile = binEl.querySelector('.pile');
+    const i = pile.children.length;
+    const row = Math.floor(i / 4), col = i % 4;
+    const j = document.createElement('div');
+    j.className = 'junk';
+    j.style.left = (14 + col * 24 + (row % 2 ? 12 : 0)) + 'px';
+    j.style.bottom = (row * 9) + 'px';
+    j.style.transform = `rotate(${Math.round(Math.random() * 30 - 15)}deg)`;
+    j.innerHTML = icon(it, 30);
+    pile.appendChild(j);
+  }
+
+  // ---- drag & drop (mouse and touch) ----
+  function binAt(x, y) {
+    for (const n of document.elementsFromPoint(x, y)) {
+      const b = n.closest && n.closest('.bin');
+      if (b) return b;
+    }
+    return null;
+  }
+  function markHover(b) {
+    document.querySelectorAll('.bin').forEach(x => x.classList.toggle('hover', x === b));
+    $('bins').classList.toggle('has-hover', !!b);
+  }
+  function hookDrag(el) {
+    el.addEventListener('pointerdown', e => {
+      if (solved) return;
+      drag = { id: e.pointerId, x: e.clientX - dx, y: e.clientY - dy };
+      el.setPointerCapture(e.pointerId);
+      el.classList.add('dragging');
+    });
+    el.addEventListener('pointermove', e => {
+      if (!drag || e.pointerId !== drag.id) return;
+      dx = e.clientX - drag.x;
+      dy = e.clientY - drag.y;
+      el.style.transform = `translate(${dx}px,${dy}px)`;
+      markHover(binAt(e.clientX, e.clientY));
+    });
+    const end = e => {
+      if (!drag || e.pointerId !== drag.id) return;
+      drag = null;
+      const b = binAt(e.clientX, e.clientY);
+      markHover(null);
+      if (b) choose(b.dataset.bin);
+      else { dx = dy = 0; el.classList.remove('dragging'); el.style.transform = ''; }
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+  }
+
+  function updateScore() {
+    $('score').textContent = `Разложено: ${placed}/${gameSize} · с первого раза: ${clean}`;
+  }
+
+  // ---- wiring ----
+  document.querySelectorAll('.modes button').forEach(btn => {
+    btn.onclick = () => {
+      binCount = +btn.dataset.n;
+      document.querySelectorAll('.modes button').forEach(x => x.classList.remove('active'));
+      btn.classList.add('active');
+      newGame();
+    };
+  });
+  $('next').onclick = () => { if (!current) newGame(); else if (solved) next(); };
+  $('reset').onclick = newGame;
+
+  newGame();
+</script>
+</body>
+</html>
