@@ -72,7 +72,25 @@
     position: absolute; left: 50%; top: 52%; transform: translate(-50%, -50%);
     background: #fff; border: 1px solid rgba(0,0,0,.35); padding: 3px 10px;
     font-weight: 700; font-size: 17px; white-space: nowrap;
+    display: flex; align-items: center; gap: 4px;
   }
+  .mat { display: none; flex: none; }
+  .show-mat .mat { display: block; }
+  .show-mat .bin .plate { font-size: 15px; padding: 2px 6px; }
+
+  .settings { position: absolute; top: 10px; right: 18px; z-index: 20; }
+  #gear {
+    width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 999px;
+    background: #fff; font-size: 18px; cursor: pointer; color: #555;
+  }
+  #popup {
+    position: absolute; top: calc(100% + 8px); right: 0;
+    background: #fff; border: 1px solid #ccc; border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.15);
+    padding: 12px 16px; display: none; white-space: nowrap;
+  }
+  #popup.open { display: block; }
+  #popup label { display: flex; align-items: center; gap: 8px; font-size: 15px; cursor: pointer; }
   .bin.hover { transform: scale(1.07); }
   .bin.wrong { animation: shake .45s; }
   .bin.right { animation: pop .35s; }
@@ -112,6 +130,12 @@
 </head>
 <body>
   <a class="back" href="index.html">← Меню</a>
+  <div class="settings">
+    <button id="gear" title="Настройки">⚙</button>
+    <div id="popup">
+      <label><input type="checkbox" id="optMat"> Показывать значок материала</label>
+    </div>
+  </div>
   <h1>♻️ Сортировка мусора</h1>
   <div class="sub">Перетащи предмет в нужный контейнер — или просто нажми на контейнер.
     Спрашивай: какой? какая? какое? какие?</div>
@@ -235,6 +259,26 @@
     </svg>`;
   }
 
+  // material icons for the bin labels (optional, see settings)
+  const MAT = {
+    glass: `<rect x="4" y="18" width="26" height="15" rx="2" fill="#bfeef2" stroke="#5fb3c4" stroke-width="1.5"/>
+      <rect x="8" y="12" width="26" height="15" rx="2" fill="#d4f6f8" stroke="#5fb3c4" stroke-width="1.5"/>
+      <rect x="12" y="6" width="24" height="15" rx="2" fill="#ecfcfd" stroke="#5fb3c4" stroke-width="1.5"/>
+      <path d="M16,17 L22,9" stroke="#fff" stroke-width="2" stroke-linecap="round"/>`,
+    paper: `<path d="M8,14 L15,7 L24,9 L33,6 L35,17 L31,27 L34,33 L20,35 L9,32 L5,22 Z" fill="#f1dcb0" stroke="#c9a96b" stroke-width="1.5" stroke-linejoin="round"/>
+      <path d="M15,7 L18,18 L9,32 M18,18 L33,6 M18,18 L31,27 M18,18 L20,35" fill="none" stroke="#c9a96b" stroke-width="1"/>`,
+    plastic: `<rect x="8" y="10" width="6" height="7" rx="1.5" fill="#ef5350"/>
+      <rect x="17" y="10" width="6" height="7" rx="1.5" fill="#ef5350"/>
+      <rect x="26" y="10" width="6" height="7" rx="1.5" fill="#ef5350"/>
+      <rect x="5" y="15" width="30" height="17" rx="2" fill="#e53935"/>
+      <rect x="5" y="15" width="30" height="4" rx="2" fill="rgba(255,255,255,.2)"/>`,
+    wood: `<g transform="rotate(-25 20 20)">
+      <rect x="2" y="14" width="36" height="12" rx="1.5" fill="#e3bd7c" stroke="#a87a3d" stroke-width="1.5"/>
+      <path d="M5,18 H20 M12,22 H34" stroke="#b98a4c" stroke-width="1"/>
+      <circle cx="6" cy="20" r="1.3" fill="#6b4a24"/><circle cx="34" cy="20" r="1.3" fill="#6b4a24"/></g>`,
+  };
+  const matIcon = id => `<svg class="mat" width="24" height="24" viewBox="0 0 40 40">${MAT[id]}</svg>`;
+
   const cap1 = s => s[0].toUpperCase() + s.slice(1);
   const binOf = id => BINS.find(b => b.id === id);
 
@@ -277,7 +321,7 @@
       d.className = 'bin';
       d.dataset.bin = b.id;
       d.innerHTML = `<div class="can">${binBack(b.color)}<div class="pile"></div>` +
-                    `${binFront(b.color)}<div class="plate">${b.name}</div></div>`;
+                    `${binFront(b.color)}<div class="plate">${matIcon(b.id)}${b.name}</div></div>`;
       d.onclick = () => choose(b.id);
       box.appendChild(d);
     });
@@ -409,6 +453,20 @@
   });
   $('next').onclick = () => { if (!current) newGame(); else if (solved) next(); };
   $('reset').onclick = newGame;
+
+  // ---- settings ----
+  function setMat(on) {
+    document.body.classList.toggle('show-mat', on);
+    $('optMat').checked = on;
+    try { localStorage.setItem('sortirovka.showMat', on ? '1' : '0'); } catch (e) {}
+  }
+  $('optMat').onchange = () => setMat($('optMat').checked);
+  $('gear').onclick = e => { e.stopPropagation(); $('popup').classList.toggle('open'); };
+  $('popup').onclick = e => e.stopPropagation();
+  document.addEventListener('click', () => $('popup').classList.remove('open'));
+  let savedMat = false;
+  try { savedMat = localStorage.getItem('sortirovka.showMat') === '1'; } catch (e) {}
+  setMat(savedMat);
 
   newGame();
 </script>
