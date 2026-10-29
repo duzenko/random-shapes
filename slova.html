@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Читаем слова</title>
+<style>
+  :root { --bg:#f4f1ea; --panel:#fff; --line:#d9d2c5; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: system-ui, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: #2b2b2b;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 18px;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  h1 { margin: 6px 0 2px; font-size: 26px; }
+  .sub { color: #777; font-size: 14px; margin-bottom: 14px; text-align: center; }
+
+  .back { position: absolute; top: 14px; left: 18px; color: #777; text-decoration: none; font-size: 15px; }
+  .back:hover { color: #2b2b2b; }
+
+  .modes { display: flex; gap: 6px; margin-bottom: 18px; }
+  .modes button {
+    padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px;
+    background: #fff; cursor: pointer; font-size: 14px;
+  }
+  .modes button.active { background: #2b2b2b; color: #fff; border-color: #2b2b2b; }
+
+  .emo {
+    font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+    line-height: 1;
+  }
+
+  .prompt {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.06);
+    min-width: 260px;
+    min-height: 150px;
+    padding: 20px 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .prompt .word { font-size: 56px; font-weight: 700; letter-spacing: .06em; }
+  .word { user-select: text; -webkit-user-select: text; cursor: text; }
+  .prompt .emo  { font-size: 110px; }
+
+  .choices { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; margin-top: 22px; }
+  .choice {
+    background: #fff;
+    border: 2px solid var(--line);
+    border-radius: 14px;
+    cursor: pointer;
+    min-width: 120px;
+    min-height: 110px;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform .08s, border-color .1s, box-shadow .1s, opacity .2s;
+  }
+  .choice:hover { transform: translateY(-3px); box-shadow: 0 6px 14px rgba(0,0,0,.1); }
+  .choice .emo  { font-size: 72px; }
+  .choice .word { font-size: 30px; font-weight: 700; letter-spacing: .04em; }
+  .choice.correct { border-color: #2e9e4f; box-shadow: 0 0 0 3px #b6e3c2; }
+  .choice.wrong   { border-color: #d23b3b; box-shadow: 0 0 0 3px #f3c0c0; animation: shake .45s; }
+  .choices.solved .choice:not(.correct) { opacity: .3; }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-8px); } 40% { transform: translateX(8px); }
+    60% { transform: translateX(-6px); } 80% { transform: translateX(6px); }
+  }
+
+  .thumb {
+    position: absolute; right: -34px; top: -34px;
+    font-size: 80px; pointer-events: none;
+    animation: thumb .6s ease forwards;
+  }
+  @keyframes thumb {
+    0%   { transform: scale(0) rotate(-30deg); opacity: 0; }
+    60%  { transform: scale(1.25) rotate(10deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0); opacity: 1; }
+  }
+
+  .feedback { font-size: 17px; min-height: 26px; margin: 18px 0 4px; font-weight: 600; text-align: center; }
+
+  .bar { display: flex; gap: 20px; align-items: center; margin-top: 10px; }
+  .bar button {
+    padding: 10px 22px; border: none; border-radius: 8px;
+    background: #4f8cff; color: #fff; font-size: 15px; cursor: pointer;
+  }
+  .bar button:hover { background: #3b76e6; }
+  .bar button:disabled { opacity: .4; cursor: default; background: #4f8cff; }
+  .score { font-size: 15px; color: #444; }
+  .reset { background: none !important; color: #999 !important; border: none; cursor: pointer; font-size: 13px; text-decoration: underline; padding: 0 !important; }
+
+  .settings { position: absolute; top: 10px; right: 18px; z-index: 20; }
+  #gear {
+    width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 999px;
+    background: #fff; font-size: 18px; cursor: pointer; color: #555;
+  }
+  #popup {
+    position: absolute; top: calc(100% + 8px); right: 0;
+    background: #fff; border: 1px solid #ccc; border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.15);
+    padding: 12px 16px; display: none; white-space: nowrap;
+  }
+  #popup.open { display: block; }
+  #popup label { display: flex; align-items: center; gap: 8px; font-size: 15px; cursor: pointer; padding: 4px 0; }
+  #popup .row { display: flex; align-items: center; gap: 10px; font-size: 15px; padding: 4px 0; }
+  #popup .row label { padding: 0; gap: 3px; }
+  #popup input[type=range] { width: 140px; }
+  #popup .hint { color: #888; font-size: 13px; }
+  .prompt .msg { font-size: 18px; color: #888; }
+</style>
+</head>
+<body>
+  <a class="back" href="index.html">← Меню</a>
+  <div class="settings">
+    <button id="gear" title="Настройки">⚙</button>
+    <div id="popup">
+      <div class="row">Режим:
+        <label><input type="radio" name="mode" value="word"> слово → картинка</label>
+        <label><input type="radio" name="mode" value="pic"> картинка → слово</label>
+      </div>
+      <div class="row">Язык слов:
+        <label><input type="radio" name="lang" value="ru"> рус</label>
+        <label><input type="radio" name="lang" value="uk"> укр</label>
+      </div>
+      <div class="row">Вариантов:
+        <label><input type="radio" name="n" value="2"> 2</label>
+        <label><input type="radio" name="n" value="3"> 3</label>
+        <label><input type="radio" name="n" value="4"> 4</label>
+      </div>
+      <label><input type="checkbox" id="optUpper"> Заглавные буквы</label>
+      <div class="row">Букв от <input type="range" id="optMin" min="3" max="10"> <b id="minVal"></b></div>
+      <div class="row">Букв до <input type="range" id="optMax" min="3" max="10"> <b id="maxVal"></b></div>
+      <div class="row hint" id="poolInfo"></div>
+    </div>
+  </div>
+
+  <h1>📖 Читаем слова</h1>
+  <div class="sub">Прочитай слово и найди картинку — или наоборот.</div>
+  <div class="prompt" id="prompt"></div>
+  <div class="choices" id="choices"></div>
+
+  <div class="feedback" id="feedback"></div>
+
+  <div class="bar">
+    <span class="score" id="score"></span>
+    <button id="next">Дальше →</button>
+    <button class="reset" id="reset">сбросить счёт</button>
+  </div>
+
+<script>
+  const VS = '️';   // force emoji presentation
+  // [русский, українська, picture]
+  const WORDS = [
+    ['ёжик', 'їжак', '🦔'], ['кот', 'кіт', '🐱'], ['дом', 'дім', '🏠'], ['сок', 'сік', '🧃'],
+    ['сыр', 'сир', '🧀'], ['лук', 'цибуля', '🧅'], ['кит', 'кит', '🐳'], ['нос', 'ніс', '👃'],
+    ['рот', 'рот', '👄'], ['зуб', 'зуб', '🦷'], ['лев', 'лев', '🦁'], ['мяч', 'м’яч', '⚽'],
+    ['рак', 'рак', '🦞'], ['шар', 'кулька', '🎈'],
+    ['слон', 'слон', '🐘'], ['зонт', 'парасолька', '☂' + VS], ['торт', 'торт', '🎂'],
+    ['луна', 'місяць', '🌙'], ['рыба', 'риба', '🐟'], ['утка', 'качка', '🦆'], ['коза', 'коза', '🐐'],
+    ['сова', 'сова', '🦉'], ['конь', 'кінь', '🐴'], ['гриб', 'гриб', '🍄'], ['ключ', 'ключ', '🔑'],
+    ['лиса', 'лисиця', '🦊'], ['мышь', 'миша', '🐭'], ['дыня', 'диня', '🍈'], ['ёлка', 'ялинка', '🌲'],
+    ['заяц', 'заєць', '🐰'], ['груша', 'груша', '🍐'], ['банан', 'банан', '🍌'], ['книга', 'книга', '📕'],
+    ['чашка', 'чашка', '☕'], ['ложка', 'ложка', '🥄'], ['пчела', 'бджола', '🐝'], ['арбуз', 'кавун', '🍉'],
+    ['лодка', 'човен', '⛵'], ['поезд', 'потяг', '🚂'], ['жираф', 'жираф', '🦒'], ['зебра', 'зебра', '🦓'],
+    ['яблоко', 'яблуко', '🍎'], ['машина', 'машина', '🚗'], ['звезда', 'зірка', '⭐'],
+    ['солнце', 'сонце', '☀' + VS], ['цветок', 'квітка', '🌸'], ['дерево', 'дерево', '🌳'],
+    ['собака', 'собака', '🐶'], ['самолёт', 'літак', '✈' + VS],
+  ].map(([ru, uk, e]) => ({ ru, uk, e }));
+
+  // ---- settings (remembered per browser) ----
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('slova.' + k); return v === null ? d : v; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('slova.' + k, v); } catch (e) {} },
+  };
+  let nChoices  = +store.get('n', '3');
+  let upper     = store.get('upper', '1') === '1';
+  let minLen    = Math.max(3, +store.get('min', '3'));
+  let maxLen    = Math.max(3, +store.get('max', '10'));
+  let mode      = store.get('mode', 'word');
+  let lang      = store.get('lang', 'ru') === 'uk' ? 'uk' : 'ru';
+
+  // ---- state ----
+  let deck = [], target = null, options = [];
+  let solved = false, firstTry = true;
+  let score = 0, total = 0, streak = 0, best = 0;
+
+  const $ = id => document.getElementById(id);
+  const word = o => upper ? o[lang].toUpperCase() : o[lang];
+
+  function shuffle(a) {
+    a = a.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+  const len = o => o[lang].replace(/’/g, '').length;   // letters only (м’яч = 4)
+  const pool = () => WORDS.filter(x => len(x) >= minLen && len(x) <= maxLen);
+
+  function nextRound() {
+    const p = pool();
+    $('poolInfo').textContent = `Слов: ${p.length}`;
+    if (p.length < nChoices) {
+      $('prompt').innerHTML = '<span class="msg">Мало слов такой длины — расширь диапазон в ⚙</span>';
+      $('choices').innerHTML = '';
+      $('feedback').textContent = '';
+      $('next').disabled = true;
+      target = null;
+      return;
+    }
+    if (!deck.length) deck = shuffle(p);          // cycle through every word before repeating
+    target = deck.pop();
+    options = shuffle([target, ...shuffle(p.filter(x => x !== target)).slice(0, nChoices - 1)]);
+    solved = false;
+    firstTry = true;
+    render();
+  }
+
+  function render() {
+    $('prompt').innerHTML = mode === 'word'
+      ? `<span class="word">${word(target)}</span>`
+      : `<span class="emo">${target.e}</span>`;
+    const box = $('choices');
+    box.className = 'choices';
+    box.innerHTML = '';
+    options.forEach(o => {
+      const d = document.createElement('div');
+      d.className = 'choice';
+      d.innerHTML = mode === 'word'
+        ? `<span class="emo">${o.e}</span>`
+        : `<span class="word">${word(o)}</span>`;
+      d.onclick = () => choose(o, d);
+      box.appendChild(d);
+    });
+    $('feedback').textContent = '';
+    $('next').disabled = true;
+    updateScore();
+  }
+
+  function choose(o, el) {
+    if (solved) return;
+    if (o === target) {
+      solved = true;
+      total++;
+      if (firstTry) { score++; streak++; best = Math.max(best, streak); }
+      el.classList.add('correct');
+      $('choices').classList.add('solved');
+      $('prompt').insertAdjacentHTML('beforeend', '<div class="thumb emo">👍</div>');
+      $('feedback').textContent = '✓ Верно!';
+      $('feedback').style.color = '#2e9e4f';
+      $('next').disabled = false;
+    } else {
+      firstTry = false;
+      streak = 0;
+      el.classList.remove('wrong'); void el.offsetWidth; el.classList.add('wrong');
+      // tell the child what they actually picked — more reading practice
+      $('feedback').textContent = mode === 'word'
+        ? `✗ Это «${word(o)}» — попробуй ещё`
+        : `✗ Здесь написано «${word(o)}» — попробуй ещё`;
+      $('feedback').style.color = '#d23b3b';
+    }
+    updateScore();
+  }
+
+  function updateScore() {
+    $('score').textContent = `С первого раза: ${score}/${total} · серия: ${streak} (рекорд ${best})`;
+  }
+
+  // ---- wiring ----
+  document.querySelectorAll('input[name="mode"]').forEach(r => {
+    r.checked = r.value === mode;
+    r.onchange = () => { mode = r.value; store.set('mode', mode); nextRound(); };
+  });
+
+  document.querySelectorAll('input[name="lang"]').forEach(r => {
+    r.checked = r.value === lang;
+    r.onchange = () => { lang = r.value; store.set('lang', lang); deck = []; nextRound(); };
+  });
+  $('next').onclick = () => { if (solved) nextRound(); };
+  $('reset').onclick = () => { score = total = streak = best = 0; updateScore(); };
+
+  document.querySelectorAll('input[name="n"]').forEach(r => {
+    r.checked = +r.value === nChoices;
+    r.onchange = () => { nChoices = +r.value; store.set('n', r.value); nextRound(); };
+  });
+  $('optUpper').checked = upper;
+  $('optUpper').onchange = () => { upper = $('optUpper').checked; store.set('upper', upper ? '1' : '0'); if (target) render(); };
+  // two sliders; dragging one past the other pushes it along
+  function syncLen() {
+    $('optMin').value = minLen; $('minVal').textContent = minLen;
+    $('optMax').value = maxLen; $('maxVal').textContent = maxLen;
+  }
+  function setLen(which) {
+    minLen = +$('optMin').value; maxLen = +$('optMax').value;
+    if (minLen > maxLen) { if (which === 'min') maxLen = minLen; else minLen = maxLen; }
+    store.set('min', minLen); store.set('max', maxLen);
+    syncLen();
+    deck = [];
+    nextRound();
+  }
+  $('optMin').oninput = () => setLen('min');
+  $('optMax').oninput = () => setLen('max');
+  syncLen();
+
+  $('gear').onclick = e => { e.stopPropagation(); $('popup').classList.toggle('open'); };
+  $('popup').onclick = e => e.stopPropagation();
+  document.addEventListener('click', () => $('popup').classList.remove('open'));
+
+  nextRound();
+</script>
+</body>
+</html>
