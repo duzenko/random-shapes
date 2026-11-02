@@ -258,9 +258,10 @@
     }
     if (!deck.length) deck = shuffle(p);          // cycle through every word before repeating
     target = deck.pop();
-    // distractors as close in length as possible, so the word can't be guessed by its length
-    const others = shuffle(p.filter(x => x !== target))
-      .sort((a, b) => Math.abs(len(a) - len(target)) - Math.abs(len(b) - len(target)));
+    // distractors that look alike: same first letters, similar length — so the word must really be read
+    const prefix = o => { const a = o[lang], b = target[lang]; let i = 0; while (i < a.length && a[i] === b[i]) i++; return i; };
+    const alike = o => 2 * prefix(o) - Math.abs(len(o) - len(target));
+    const others = shuffle(p.filter(x => x !== target)).sort((a, b) => alike(b) - alike(a));
     options = shuffle([target, ...others.slice(0, nChoices - 1)]);
     solved = false;
     firstTry = true;
